@@ -2,3 +2,5 @@ dahuffman
 scikit-dsp-comm 
 scikit-commpy
 numpy
+matplotlib
+math
