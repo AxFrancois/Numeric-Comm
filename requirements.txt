@@ -1,0 +1,4 @@
+dahuffman 
+scikit-dsp-comm 
+scikit-commpy
+numpy
