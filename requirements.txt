@@ -4,3 +4,4 @@ scikit-commpy
 numpy
 matplotlib
 python-math
+autopep8
