@@ -1,7 +1,8 @@
+pip
 dahuffman 
 scikit-dsp-comm 
 scikit-commpy
 numpy
 matplotlib
-python-math
 autopep8
+scipy
