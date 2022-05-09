@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 """
 Created on 13/04/2022
 @author: Alexandre Drevet & Axel François
@@ -7,13 +6,14 @@ github : https://github.com/AxFrancois/Numeric-Comm
 
 """
 
-# Imports
+#----------------------- Imports -----------------------#
 # from time import pthread_getcpuclockid
 # from operator import length_hint
+# from codecs import Codec
 
-from codecs import Codec
-import random
 import math
+import random
+from click import progressbar
 
 import commpy.modulation as mod
 import matplotlib.pylab as plt
@@ -24,11 +24,11 @@ from commpy.channelcoding import cyclic_code_genpoly
 from dahuffman import HuffmanCodec
 from scipy import special
 
-# Functions
+#----------------------- Functions -----------------------#
 
 
 def bitstring_to_bytes_p3(s):
-    """fct : String formatting to bytes, Python3 version using .to_bytes()
+    """String formatting to bytes, Python3 version using .to_bytes()
 
     Args:
             s (bitstring): string of bit
@@ -38,23 +38,31 @@ def bitstring_to_bytes_p3(s):
     """
     return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder='big')
 
-# fct Nberr in a binary array
-
-
-def nbiterr(bits, detected_bits):
-    err_matrix = (bits + detected_bits) % 2
-    nb_err = err_matrix.sum()
-    # print error
-    return nb_err
-
 
 def homemade_huffman_encoder(pTuple):
+    """Encodeur Huffman n'utilisant pas HuffmanCodec.encode()
+
+    Args:
+            pTuple (tuple): tuple de la lettre obtenue par HuffmanCodec.get_code_table()
+
+    Returns:
+            str: bits de la lettre encodée
+    """
     intInBin = bin(pTuple[1]).replace("0b", "")
     valren = "0"*(pTuple[0]-len(intInBin)) + intInBin
     return valren
 
 
 def huffman_decoder_table(huff_code_table):
+    """_summary_
+
+    Args:
+            bits (_type_): _description_
+            detected_bits (_type_): _description_
+
+    Returns:
+            _type_: _description_
+    """
     dic = {}
     for item in huff_code_table.items():
         intInBin = bin(item[1][1]).replace("0b", "")
@@ -63,39 +71,233 @@ def huffman_decoder_table(huff_code_table):
     return dic
 
 
-# TP1
-# Q2
+def graphLettres(txt):
+    # TP1 Q2
+    char = []
+    count = []
+    for letter in txt:
+        if letter in char:
+            count[char.index(letter)] += 1
+        else:
+            char.append(letter)
+            count.append(1)
+    charArray = np.array(char)
+    countArray = np.array(count)
+    probaArray = countArray/len(txt)
+    fig = plt.figure(0)
+    ax = fig.add_axes([0.1, 0.1, 0.85, 0.85])
+    ax.bar(charArray, probaArray)
+    handles, labels = ax.get_legend_handles_labels()
+    legend = fig.legend(handles, labels, loc='lower left', ncol=2,
+                        frameon=False, bbox_to_anchor=(0.12, 0.88))
+    fig.savefig('repartition.jpg', bbox_extra_artists=(ax, legend))
+    # Q3
+    entropy = -np.sum(np.dot(probaArray, np.log2(probaArray)))
+    print("Entropie calculé : ", entropy)
+
+
+def source_encode_decode(txt, drawgraph=False, addError=False):
+    # TP1 Q4
+    huffman_codec_data = HuffmanCodec.from_data(txt)
+    print("Code table du codec Huffman : ")
+    huffman_codec_data.print_code_table()
+    print("\n")
+    huff_code_table = huffman_codec_data.get_code_table()
+
+    # TP1 Q5
+    print("Debut encodage Huffman")
+    h_enc_data = huffman_codec_data.encode(txt)
+    h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
+    print("Fin encodage Huffman")
+
+    # Calcul du taux d'erreur sur un code huffman bruité avec 1 erreur par bloc de 4 bits
+    print("Calculs de probabilités : ", addError)
+    if addError == True:
+        h_enc_data_str_err = add_error(h_enc_data_str, 4)
+        h_enc_data_err = bitstring_to_bytes_p3(h_enc_data_str_err)
+        h_dec_err = huffman_codec_data.decode(h_enc_data_err)
+        nbError = 0
+        for i in range(min(len(h_dec_err), len(txt))):
+            if h_dec_err[i] != txt[i]:
+                nbError += 1
+        print("Taux d'erreur sur un code huffman bruité avec 1 erreur par bloc de 4 bits :", round(
+            nbError/max(len(h_dec_err), len(txt))*100, 4), "%.")
+
+        # TP2
+    print("\n")
+    returned_h_enc_data = channel_encode_decode(
+        h_enc_data_str, drawgraph, addError)
+
+    # TP1 Q6
+    print("Debut décodage Huffman")
+    h_dec_data = huffman_codec_data.decode(returned_h_enc_data)
+    print("Fin décodage Huffman")
+
+    return h_dec_data
+
+
+def add_error(txt, k):
+    # TP1 Q9
+    error_txt = txt
+    i = 0
+    while i < len(error_txt):
+        randnum = random.randint(0, k-1)
+        if error_txt[i+randnum] == '0':
+            error_txt = error_txt[:i + randnum] + '1' + error_txt[i+randnum+1:]
+        else:
+            error_txt = error_txt[:i + randnum] + '0' + error_txt[i+randnum+1:]
+        i += k
+    return error_txt
+
+
+def channel_encode_decode(ph_enc_data, drawgraph=False, addError=False):
+    # TP2 Q1 et 2
+    # Création polynôme générateur
+    genpoly_7_4_1 = format(cyclic_code_genpoly(7, 4)[1], 'b')
+
+    # TP2 Q3
+    # Code cyclique associé au polynôme générateur
+    cyccode = block.FECCyclic(genpoly_7_4_1)
+
+    # TP2 Q5
+    # Conversion str en np array
+    h_enc_array = np.array(list(ph_enc_data), dtype=int).astype(int)
+    # Encodage cyclique
+    print("Debut encodage cyclique")
+    codewords = cyccode.cyclic_encoder(h_enc_array)
+    print("Fin encodage cyclique")
+
+    # Calcul du taux d'erreur sur un code cyclique bruité avec 1 erreur par bloc de 7 bits
+    print("Calculs de probabilités : ", addError)
+    if addError == True:
+        codewords_str = ''.join(str(x) for x in codewords)
+        codewords_str_err = codewords_str
+        h_enc_str = ''.join(str(x) for x in h_enc_array)
+        for err in range(1, 4):
+            for i in range(err):
+                codewords_str_err = add_error(codewords_str_err, 7)
+            codewords_err = np.array(
+                list(codewords_str_err), dtype=int).astype(int)
+            decoded_err = cyccode.cyclic_decoder(codewords_err)
+            decoded_err_bits_str = ''.join(str(x) for x in decoded_err)
+
+            nbError = 0
+            for i in range(len(h_enc_str)):
+                if h_enc_str[i] != decoded_err_bits_str[i]:
+                    nbError += 1
+            print("Taux d'erreur sur un code cyclique bruité avec {} erreur(s) par bloc de 7 bits :".format(
+                err), round(nbError/len(codewords_str)*100, 4), "%.")
+
+    # TP3
+    print("\n")
+    returned_codewords = modulation_demodulation(
+        codewords, h_enc_array, drawgraph, addError)
+
+    # TP2 Q6
+    # Décodage cyclique
+    print("Debut décodage cyclique")
+    decoded = cyccode.cyclic_decoder(returned_codewords.astype('int'))
+    print("Fin décodage cyclique")
+    decode_bits = ''.join(str(x) for x in decoded)
+    # Conversion bitstring en bytes
+    output = bitstring_to_bytes_p3(decode_bits)
+    # Q7 : cf fin du TP1 !
+    return output
+
+
+def modulation_demodulation(codewords, h_enc_array, drawgraph=False, addError=False):
+    M = [4, 16, 64, 256]
+    colors = ['ro--', 'bo--', 'yo--', 'mo--', 'rs--', 'bs--',
+              'ys--', 'ms--', 'rD--', 'bD--', 'yD--', 'mD--']
+    EbSurN0 = range(13)  # en dB
+
+    if drawgraph == True:
+        plt.figure(1)
+        code_test = [codewords, h_enc_array]
+        for j in range(len(code_test)):
+            for i in range(len(M)):
+                valempirique = []
+                modem = mod.QAMModem(M[i])
+                modulated = modem.modulate(code_test[j])
+                for isnr in EbSurN0:
+                    k_mod = math.log2(M[i])
+                    snr = isnr + 10*math.log10(k_mod)
+                    bruited = digcom.cpx_awgn(modulated, snr, 1)
+                    demodulated = modem.demodulate(bruited, 'hard')
+                    while np.size(code_test[j]) < np.size(demodulated):
+                        demodulated = demodulated[:-1]
+                    while np.size(code_test[j]) > np.size(demodulated):
+                        demodulated = np.append(demodulated, [0])
+                    diff = abs(code_test[j] - demodulated)
+                    unique, counts = np.unique(diff, return_counts=True)
+                    result = dict(zip(unique, counts))
+                    try:
+                        result[1]
+                    except:
+                        result[1] = 0
+                    # + 1e-8 Au cas où il y ai 0 erreurs pour ne pas casser l'affichage semilog
+                    proba = result[1]/len(demodulated) + 1e-8
+                    valempirique.append(proba)
+                    print("Taux d'erreur sur une modulation avec M = {} et un Eb/N0 = {} : {} %".format(
+                        M[i], isnr, round(proba*100, 10)))
+
+                plt.plot(EbSurN0, valempirique, colors[j*4+i])
+
+        # car il faut convertir en linéaire
+        valtheorique = []
+        for value in EbSurN0:
+            valtheorique.append(1/2 * special.erfc(math.sqrt(10**(value/10))))
+        print(valtheorique)
+        plt.plot(EbSurN0, valtheorique, 'g^--')
+        plt.legend()
+        plt.yscale('log')
+        plt.show()
+
+   # Cas général choisit pour la chaine M[1] = 16 points et EbSurN0[9] = 8 dB
+    modem = mod.QAMModem(M[1])
+    val = [-3, -1, 1, 3]
+    points = np.array([complex(x, y)
+                       for x in val for y in val])
+    print("Debut modulation")
+    modulated = modem.modulate(codewords)
+    print("Fin modulation")
+    if addError == True:
+        snr = EbSurN0[9] + 10*math.log10(k_mod)
+        bruited = digcom.cpx_awgn(modulated, snr, 1)
+        xpoint = points.real
+        ypoint = points.imag
+        x = bruited.real
+        y = bruited.imag
+        plt.figure(2)
+        plt.plot(x, y, 'rX')
+        plt.plot(xpoint, ypoint, 'b*')
+        plt.ylabel('Imaginary')
+        plt.xlabel('Real')
+        plt.show()
+        print("Debut démodulation")
+        demodulated = modem.demodulate(bruited, 'hard')
+        print("Fin démodulation")
+    else:
+        print("Debut démodulation")
+        demodulated = modem.demodulate(modulated, 'hard')
+        print("Fin démodulation")
+
+    while np.size(codewords) < np.size(demodulated):
+        demodulated = demodulated[:-1]
+    while np.size(codewords) > np.size(demodulated):
+        demodulated = np.append(demodulated, [0])
+    return demodulated
+
+
+#----------------------- TP1 -----------------------#
+# Q2 et 3
 f = open("The_Adventures_of_Sherlock_Holmes_A_Scandal_In_Bohemia.txt", "r")
 txt = f.read()
-char = []
-count = []
 
-for letter in txt:
-    if letter in char:
-        count[char.index(letter)] += 1
-    else:
-        char.append(letter)
-        count.append(1)
-
-charArray = np.array(char)
-countArray = np.array(count)
-probaArray = countArray/len(txt)
-
-fig = plt.figure(0)
-ax = fig.add_axes([0.1, 0.1, 0.85, 0.85])
-ax.bar(charArray, probaArray)
-handles, labels = ax.get_legend_handles_labels()
-legend = fig.legend(handles, labels, loc='lower left', ncol=2,
-                    frameon=False, bbox_to_anchor=(0.12, 0.88))
-fig.savefig('repartition.jpg', bbox_extra_artists=(ax, legend))
-
-# Q3
-entropy = -np.sum(np.dot(probaArray, np.log2(probaArray)))
-print("Entropy : ", entropy)
+graphLettres(txt)
 
 # Q4
 huffman_codec_data = HuffmanCodec.from_data(txt)
-# print(huffman_codec_data)
 # huffman_codec_data.print_code_table()
 huff_code_table = huffman_codec_data.get_code_table()
 
@@ -110,15 +312,27 @@ with this eBook or online at www.gutenberg.net
 
 Title: The Adventures of Sherlock Holmes
 
-Author: Arthur Conan Doyle"""
-h_enc_data = huffman_codec_data.encode(txt)
-# print(h_enc_data[:30])
+Author: Arthur Conan Doyle
+
+Posting Date: April 18, 2011 [EBook #1661]
+First Posted: November 29, 2002
+
+Language: English
+
+Character set encoding: ASCII
+
+*** START OF THIS PROJECT GUTENBERG EBOOK THE ADVENTURES OF SHERLOCK HOLMES ***
+
+
+Produced by an anonymous Project Gutenberg volunteer and Jose Menendez"""
+
+print(source_encode_decode(txt, True,  True))
+
+h_enc_data = huffman_codec_data.encode(phrase)
 h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
-# print(h_enc_data_str[:30])
 
 # Q6
 h_dec_data = huffman_codec_data.decode(h_enc_data)
-# print(h_dec_data)
 
 # Q7
 # https://stackoverflow.com/questions/39718576/convert-a-byte-array-to-single-bits-in-a-array-python-3-5
@@ -128,9 +342,6 @@ x = np.fromstring(mem, dtype=np.uint8)
 np.unpackbits(x).reshape(3, 8)
 
 # Q8
-
-phrase = """This eBook is for the use of anyone anywhere at no cost and with
-almost no restrictions whatsoever."""
 phrasehuff_str = ""
 for letter in phrase:
     phrasehuff_str = phrasehuff_str + \
@@ -139,127 +350,12 @@ k = 4
 Njam = k - len(phrasehuff_str) % k
 phrasehuff_str = phrasehuff_str + '0'*Njam
 phrasehuff_bit = bitstring_to_bytes_p3(phrasehuff_str)
-# print(phrasehuff_str)
 
 
-# Q9
-phrasehuff_str_err = phrasehuff_str
-i = 0
-while i < len(phrasehuff_str_err):
-    randnum = random.randint(0, k-1)
-    if phrasehuff_str_err[i+randnum] == '0':
-        phrasehuff_str_err = phrasehuff_str_err[:i +
-                                                randnum] + '1' + phrasehuff_str_err[i+randnum+1:]
-    else:
-        phrasehuff_str_err = phrasehuff_str_err[:i +
-                                                randnum] + '0' + phrasehuff_str_err[i+randnum+1:]
-    i += k
-
-# print(phrasehuff_str_err)
-
-
-# TP 2
+#----------------------- TP2 -----------------------#
 # https://scikit-dsp-comm.readthedocs.io/en/latest/nb_examples/Block_Codes.html
-
-# Q1 et 2
-# Example : create generator polynomial, - to replace by yours !
-genpoly_7_4_1 = format(cyclic_code_genpoly(7, 4)[1], 'b')
-
-# Q3
-# Example (7,4) by default (1st poly), to replace by yours
-cyccode = block.FECCyclic(genpoly_7_4_1)
-
-# Q4 : cf Q9 TP1
-
-# Q5
-length = int(len(phrasehuff_str) / 4)
-# x1 = np.array(list(phrasehuff_str), dtype=int).astype(int)
-x1 = np.array(list(h_enc_data_str), dtype=int).astype(int)
-# x1 = np.reshape(x1, (k, length)).astype(int)
-# print(np.shape(x1))
-
-codewords = cyccode.cyclic_encoder(x1)
-# print(codewords)
-
-# Q6
-decoded = cyccode.cyclic_decoder(codewords)
-decode_byte = ''.join(str(x) for x in decoded)
-output = bitstring_to_bytes_p3(decode_byte)
-
-# Q7
+# cf fonction channel_encode_decode
 
 
-# print(huffman_codec_data.decode(output))
-
-
-# TP3
-plt.figure(1)
-for M in [4, 16]:
-    print("Cas M = ", M)
-    k_mod = math.log2(M)
-    print("k_mod = ", k_mod)  # faire le bourrage -> fait par huffman
-    modem = mod.QAMModem(M)
-    modulated = modem.modulate(codewords)
-    EbSurN0 = range(1, 10)  # en dB
-    valempirique = []
-    for isnr in EbSurN0:
-        snr = isnr + 10*math.log10(k_mod)
-        # bruit gaussien
-        bruited = digcom.cpx_awgn(modulated, snr, 1)
-        demodulated = modem.demodulate(bruited, 'hard')
-        diff = abs(codewords - demodulated)
-        unique, counts = np.unique(diff, return_counts=True)
-        result = dict(zip(unique, counts))
-        try:
-            result[1]
-        except:
-            result[1] = 0
-        proba = result[1]/len(demodulated) + 1e-5
-        valempirique.append(proba)
-        print(isnr, result, round(proba*100, 10), "%")
-    if M == 4:
-        plt.plot(EbSurN0, valempirique, 'ro--')
-    elif M == 16:
-        plt.plot(EbSurN0, valempirique, 'bo--')
-
-# car il faut convertir en linéaire
-valtheorique = []
-for value in EbSurN0:
-    valtheorique.append(1/2 * special.erfc(math.sqrt(10**(value/10))))
-print(valtheorique)
-plt.plot(EbSurN0, valtheorique, 'g^--')
-plt.yscale('log')
-plt.show()
-
-M = 16
-modem = mod.QAMModem(M)
-k_mod = math.log2(M)
-modulated = modem.modulate(codewords)
-EbSurN0 = 8  # en dB
-snr = EbSurN0 + 10*math.log10(k_mod)
-bruited = digcom.cpx_awgn(modulated, snr, 1)
-demodulated = modem.demodulate(bruited, 'hard')
-diff1 = abs(codewords - demodulated)
-unique, counts = np.unique(diff1, return_counts=True)
-result1 = dict(zip(unique, counts))
-try:
-    result1[1]
-except:
-    result1[1] = 0
-proba1 = result1[1]/len(demodulated)
-print(proba1)
-
-decoded = cyccode.cyclic_decoder(demodulated.astype(int))
-diff2 = abs(decoded - x1)
-unique, counts = np.unique(diff2, return_counts=True)
-result2 = dict(zip(unique, counts))
-try:
-    result2[1]
-except:
-    result2[1] = 0
-proba2 = result2[1]/len(decoded)
-print(proba2)
-decode_byte = ''.join(str(x) for x in decoded)
-output = bitstring_to_bytes_p3(decode_byte)
-
-print(huffman_codec_data.decode(output))
+#----------------------- TP3 -----------------------#
+# cf fonction modulation_demodulation
