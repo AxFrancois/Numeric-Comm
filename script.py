@@ -12,23 +12,33 @@ github : https://github.com/AxFrancois/Numeric-Comm
 # from codecs import Codec
 
 import math
+import sys
+import os
+import time
+import multiprocessing as mp
 import random
-from click import progressbar
 
 import commpy.modulation as mod
 import matplotlib.pylab as plt
 import numpy as np
 import sk_dsp_comm.digitalcom as digcom
 import sk_dsp_comm.fec_block as block
+from click import progressbar
 from commpy.channelcoding import cyclic_code_genpoly
 from dahuffman import HuffmanCodec
 from scipy import special
 
+from header_tp_eti import bitstring_to_bytes_p3
+
+mysem = mp.Semaphore(1)
+valempirique = mp.Array('f', range(13))  # []
+valempirique2 = mp.Array('f', range(13))  # []
+
 #----------------------- Functions -----------------------#
 
 
-def bitstring_to_bytes_p3(s):
-    """String formatting to bytes, Python3 version using .to_bytes()
+# def bitstring_to_bytes_p3(s):
+"""String formatting to bytes, Python3 version using .to_bytes()
 
     Args:
             s (bitstring): string of bit
@@ -36,7 +46,7 @@ def bitstring_to_bytes_p3(s):
     Returns:
             int: bytes
     """
-    return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder='big')
+# return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder='big')
 
 
 def homemade_huffman_encoder(pTuple):
@@ -96,7 +106,7 @@ def graphLettres(txt):
     print("Entropie calculé : ", entropy)
 
 
-def source_encode_decode(txt, drawgraph=False, addError=False):
+def source_encode_decode(txt, valempirique, valempirique2, drawgraph=False, addError=False):
     # TP1 Q4
     huffman_codec_data = HuffmanCodec.from_data(txt)
     print("Code table du codec Huffman : ")
@@ -114,7 +124,8 @@ def source_encode_decode(txt, drawgraph=False, addError=False):
     print("Calculs de probabilités : ", addError)
     if addError == True:
         h_enc_data_str_err = add_error(h_enc_data_str, 4)
-        h_enc_data_err = bitstring_to_bytes_p3(h_enc_data_str_err)
+        h_enc_data_err = bitstring_to_bytes_p3(
+            h_enc_data_str_err)
         h_dec_err = huffman_codec_data.decode(h_enc_data_err)
         nbError = 0
         for i in range(min(len(h_dec_err), len(txt))):
@@ -126,7 +137,7 @@ def source_encode_decode(txt, drawgraph=False, addError=False):
         # TP2
     print("\n")
     returned_h_enc_data = channel_encode_decode(
-        h_enc_data_str, drawgraph, addError)
+        h_enc_data_str, valempirique, valempirique2, drawgraph, addError)
 
     # TP1 Q6
     print("Debut décodage Huffman")
@@ -150,7 +161,7 @@ def add_error(txt, k):
     return error_txt
 
 
-def channel_encode_decode(ph_enc_data, drawgraph=False, addError=False):
+def channel_encode_decode(ph_enc_data, valempirique, valempirique2, drawgraph=False, addError=False):
     # TP2 Q1 et 2
     # Création polynôme générateur
     genpoly_7_4_1 = format(cyclic_code_genpoly(7, 4)[1], 'b')
@@ -191,7 +202,7 @@ def channel_encode_decode(ph_enc_data, drawgraph=False, addError=False):
     # TP3
     print("\n")
     returned_codewords = modulation_demodulation(
-        codewords, h_enc_array, drawgraph, addError)
+        codewords, h_enc_array, cyccode, valempirique, valempirique2, drawgraph, addError)
 
     # TP2 Q6
     # Décodage cyclique
@@ -205,51 +216,91 @@ def channel_encode_decode(ph_enc_data, drawgraph=False, addError=False):
     return output
 
 
-def modulation_demodulation(codewords, h_enc_array, drawgraph=False, addError=False):
+def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valempirique2, drawgraph=False, addError=False):
     M = [4, 16, 64, 256]
     colors = ['ro--', 'bo--', 'yo--', 'mo--', 'rs--', 'bs--',
-              'ys--', 'ms--', 'rD--', 'bD--', 'yD--', 'mD--']
+              'ys--', 'ms--', 'rD-.', 'bD-.', 'yD-.', 'mD-.']
     EbSurN0 = range(13)  # en dB
 
     if drawgraph == True:
-        plt.figure(1)
         code_test = [codewords, h_enc_array]
         for j in range(len(code_test)):
             for i in range(len(M)):
-                valempirique = []
                 modem = mod.QAMModem(M[i])
                 modulated = modem.modulate(code_test[j])
                 for isnr in EbSurN0:
-                    k_mod = math.log2(M[i])
-                    snr = isnr + 10*math.log10(k_mod)
-                    bruited = digcom.cpx_awgn(modulated, snr, 1)
-                    demodulated = modem.demodulate(bruited, 'hard')
-                    while np.size(code_test[j]) < np.size(demodulated):
-                        demodulated = demodulated[:-1]
-                    while np.size(code_test[j]) > np.size(demodulated):
-                        demodulated = np.append(demodulated, [0])
-                    diff = abs(code_test[j] - demodulated)
-                    unique, counts = np.unique(diff, return_counts=True)
-                    result = dict(zip(unique, counts))
-                    try:
-                        result[1]
-                    except:
-                        result[1] = 0
-                    # + 1e-8 Au cas où il y ai 0 erreurs pour ne pas casser l'affichage semilog
-                    proba = result[1]/len(demodulated) + 1e-8
-                    valempirique.append(proba)
-                    print("Taux d'erreur sur une modulation avec M = {} et un Eb/N0 = {} : {} %".format(
-                        M[i], isnr, round(proba*100, 10)))
+                    pid = os.fork()
+                    if pid == 0:  # Processus Fils
+                        k_mod = math.log2(M[i])
+                        snr = isnr + 10*math.log10(k_mod)
+                        bruited = digcom.cpx_awgn(modulated, snr, 1)
+                        demodulated = modem.demodulate(bruited, 'hard')
+                        while np.size(code_test[j]) < np.size(demodulated):
+                            demodulated = demodulated[:-1]
+                        while np.size(code_test[j]) > np.size(demodulated):
+                            demodulated = np.append(demodulated, [0])
+                        diff = abs(code_test[j] - demodulated)
+                        unique, counts = np.unique(diff, return_counts=True)
+                        result = dict(zip(unique, counts))
+                        try:
+                            result[1]
+                        except:
+                            result[1] = 0
+                        # + 1e-8 Au cas où il y ai 0 erreurs pour ne pas casser l'affichage semilog
+                        proba = result[1]/len(demodulated) + 1e-8
+                        if j == 0:
+                            # valempirique.append(proba)
+                            valempirique[isnr] = proba
+                            decoded = cyccode.cyclic_decoder(
+                                demodulated.astype('int'))
+                            diff2 = abs(h_enc_array - decoded)
+                            unique2, counts2 = np.unique(
+                                diff2, return_counts=True)
+                            result2 = dict(zip(unique2, counts2))
+                            try:
+                                result2[1]
+                            except:
+                                result2[1] = 0
+                            proba2 = result2[1]/len(demodulated) + 1e-8
+                            # valempirique2.append(proba2)
+                            valempirique2[isnr] = proba2
+                            print("Taux d'erreur sur une modulation avec M = {} et un Eb/N0 = {} : {} %".format(
+                                M[i], isnr, round(proba*100, 10)))
+                            print("Taux d'erreur après décodage cyclique : {} %".format(
+                                round(proba2*100, 10)))
+                        else:
+                            # valempirique2.append(proba)
+                            valempirique2[isnr] = proba
+                        mysem.release()
+                        sys.exit(0)
+                for val in EbSurN0:
+                    mysem.acquire()
+                if j == 0:
+                    plt.figure(1)
 
-                plt.plot(EbSurN0, valempirique, colors[j*4+i])
+                    data1 = [i for i in valempirique]
+                    plt.plot(EbSurN0, data1,
+                             colors[i], label="{}-QAM".format(M[i]))
+                    mylabel = "avec"
+                else:
+                    mylabel = "sans"
+                plt.figure(2)
+
+                data2 = [i for i in valempirique2]
+                plt.plot(EbSurN0, data2, colors[(
+                    j+1)*4+i], label="{}-QAM {} cycccode".format(M[i], mylabel))
 
         # car il faut convertir en linéaire
         valtheorique = []
         for value in EbSurN0:
             valtheorique.append(1/2 * special.erfc(math.sqrt(10**(value/10))))
         print(valtheorique)
-        plt.plot(EbSurN0, valtheorique, 'g^--')
-        plt.legend()
+        plt.figure(1)
+        plt.plot(EbSurN0, valtheorique, 'g^-', label="4-QAM théorique")
+        plt.legend(loc="lower left")
+        plt.yscale('log')
+        plt.figure(2)
+        plt.legend(loc="lower left")
         plt.yscale('log')
         plt.show()
 
@@ -257,12 +308,12 @@ def modulation_demodulation(codewords, h_enc_array, drawgraph=False, addError=Fa
     modem = mod.QAMModem(M[1])
     val = [-3, -1, 1, 3]
     points = np.array([complex(x, y)
-                       for x in val for y in val])
+                      for x in val for y in val])
     print("Debut modulation")
     modulated = modem.modulate(codewords)
     print("Fin modulation")
     if addError == True:
-        snr = EbSurN0[9] + 10*math.log10(k_mod)
+        snr = EbSurN0[9] + 10*math.log10(math.log2(M[1]))
         bruited = digcom.cpx_awgn(modulated, snr, 1)
         xpoint = points.real
         ypoint = points.imag
@@ -308,25 +359,9 @@ This eBook is for the use of anyone anywhere at no cost and with
 almost no restrictions whatsoever.  You may copy it, give it away or
 re-use it under the terms of the Project Gutenberg License included
 with this eBook or online at www.gutenberg.net
+"""
 
-
-Title: The Adventures of Sherlock Holmes
-
-Author: Arthur Conan Doyle
-
-Posting Date: April 18, 2011 [EBook #1661]
-First Posted: November 29, 2002
-
-Language: English
-
-Character set encoding: ASCII
-
-*** START OF THIS PROJECT GUTENBERG EBOOK THE ADVENTURES OF SHERLOCK HOLMES ***
-
-
-Produced by an anonymous Project Gutenberg volunteer and Jose Menendez"""
-
-print(source_encode_decode(txt, True,  True))
+source_encode_decode(txt, valempirique, valempirique2, True,  True)
 
 h_enc_data = huffman_codec_data.encode(phrase)
 h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
