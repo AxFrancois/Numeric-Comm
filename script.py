@@ -7,22 +7,18 @@ github : https://github.com/AxFrancois/Numeric-Comm
 """
 
 #----------------------- Imports -----------------------#
-# from time import pthread_getcpuclockid
-# from operator import length_hint
-# from codecs import Codec
 
 import math
-import sys
-import os
 import multiprocessing as mp
+import os
 import random
+import sys
 
 import commpy.modulation as mod
 import matplotlib.pylab as plt
 import numpy as np
 import sk_dsp_comm.digitalcom as digcom
 import sk_dsp_comm.fec_block as block
-from click import progressbar
 from commpy.channelcoding import cyclic_code_genpoly
 from dahuffman import HuffmanCodec
 from scipy import special
