@@ -6,7 +6,7 @@ github : https://github.com/AxFrancois/Numeric-Comm
 
 """
 
-#----------------------- Imports -----------------------#
+# ----------------------- Imports ----------------------- #
 
 import math
 import multiprocessing as mp
@@ -29,7 +29,7 @@ mysem = mp.Semaphore(0)
 valempirique = mp.Array('f', range(13))  # []
 valempirique2 = mp.Array('f', range(13))  # []
 
-#----------------------- Functions -----------------------#
+# ----------------------- Functions ----------------------- #
 
 
 # def bitstring_to_bytes_p3(s):
@@ -41,6 +41,8 @@ valempirique2 = mp.Array('f', range(13))  # []
     Returns:
             int: bytes
     """
+
+
 # return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder='big')
 
 
@@ -54,24 +56,15 @@ def homemade_huffman_encoder(pTuple):
             str: bits de la lettre encodée
     """
     intInBin = bin(pTuple[1]).replace("0b", "")
-    valren = "0"*(pTuple[0]-len(intInBin)) + intInBin
+    valren = "0" * (pTuple[0] - len(intInBin)) + intInBin
     return valren
 
 
 def huffman_decoder_table(huff_code_table):
-    """_summary_
-
-    Args:
-            bits (_type_): _description_
-            detected_bits (_type_): _description_
-
-    Returns:
-            _type_: _description_
-    """
     dic = {}
     for item in huff_code_table.items():
         intInBin = bin(item[1][1]).replace("0b", "")
-        valbin = "0"*(item[1][0]-len(intInBin)) + intInBin
+        valbin = "0" * (item[1][0] - len(intInBin)) + intInBin
         dic[valbin] = item[0]
     return dic
 
@@ -88,14 +81,13 @@ def graphLettres(txt):
             count.append(1)
     charArray = np.array(char)
     countArray = np.array(count)
-    probaArray = countArray/len(txt)
+    probaArray = countArray / len(txt)
     fig = plt.figure(0)
     ax = fig.add_axes([0.1, 0.1, 0.85, 0.85])
     ax.bar(charArray, probaArray)
     handles, labels = ax.get_legend_handles_labels()
     legend = fig.legend(handles, labels, loc='lower left', ncol=2,
                         frameon=False, bbox_to_anchor=(0.12, 0.88))
-    fig.savefig('repartition.jpg', bbox_extra_artists=(ax, legend))
     # Q3
     entropy = -np.sum(np.dot(probaArray, np.log2(probaArray)))
     print("Entropie calculé : ", entropy)
@@ -127,7 +119,7 @@ def source_encode_decode(txt, valempirique, valempirique2, drawgraph=False, addE
             if h_dec_err[i] != txt[i]:
                 nbError += 1
         print("Taux d'erreur sur un code huffman bruité avec 1 erreur par bloc de 4 bits :", round(
-            nbError/max(len(h_dec_err), len(txt))*100, 4), "%.")
+            nbError / max(len(h_dec_err), len(txt)) * 100, 4), "%.")
 
         # TP2
     print("\n")
@@ -147,11 +139,13 @@ def add_error(txt, k):
     error_txt = txt
     i = 0
     while i < len(error_txt):
-        randnum = random.randint(0, k-1)
-        if error_txt[i+randnum] == '0':
-            error_txt = error_txt[:i + randnum] + '1' + error_txt[i+randnum+1:]
+        randnum = random.randint(0, k - 1)
+        if error_txt[i + randnum] == '0':
+            error_txt = error_txt[:i + randnum] + \
+                '1' + error_txt[i + randnum + 1:]
         else:
-            error_txt = error_txt[:i + randnum] + '0' + error_txt[i+randnum+1:]
+            error_txt = error_txt[:i + randnum] + \
+                '0' + error_txt[i + randnum + 1:]
         i += k
     return error_txt
 
@@ -192,7 +186,7 @@ def channel_encode_decode(ph_enc_data, valempirique, valempirique2, drawgraph=Fa
                 if h_enc_str[i] != decoded_err_bits_str[i]:
                     nbError += 1
             print("Taux d'erreur sur un code cyclique bruité avec {} erreur(s) par bloc de 7 bits :".format(
-                err), round(nbError/len(codewords_str)*100, 4), "%.")
+                err), round(nbError / len(codewords_str) * 100, 4), "%.")
 
     # TP3
     print("\n")
@@ -211,7 +205,8 @@ def channel_encode_decode(ph_enc_data, valempirique, valempirique2, drawgraph=Fa
     return output
 
 
-def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valempirique2, drawgraph=False, addError=False):
+def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valempirique2, drawgraph=False,
+                            addError=False):
     M = [4, 16, 64, 256]
     colors = ['ro--', 'bo--', 'yo--', 'mo--', 'rs--', 'bs--',
               'ys--', 'ms--', 'rD-.', 'bD-.', 'yD-.', 'mD-.']
@@ -228,7 +223,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                     pid = os.fork()
                     if pid == 0:  # Processus Fils
                         k_mod = math.log2(M[i])
-                        snr = isnr + 10*math.log10(k_mod)
+                        snr = isnr + 10 * math.log10(k_mod)
                         bruited = digcom.cpx_awgn(modulated, snr, 1)
                         demodulated = modem.demodulate(bruited, 'hard')
                         while np.size(code_test[j]) < np.size(demodulated):
@@ -243,7 +238,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                         except:
                             result[1] = 0
                         # + 1e-8 Au cas où il y ai 0 erreurs pour ne pas casser l'affichage semilog
-                        proba = result[1]/len(demodulated) + 1e-8
+                        proba = result[1] / len(demodulated) + 1e-8
                         if j == 0:
                             # valempirique.append(proba)
                             valempirique[isnr] = proba
@@ -257,7 +252,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                                 result2[1]
                             except:
                                 result2[1] = 0
-                            proba2 = result2[1]/len(demodulated) + 1e-8
+                            proba2 = result2[1] / len(demodulated) + 1e-8
                             # valempirique2.append(proba2)
                             valempirique2[isnr] = proba2
                         else:
@@ -272,9 +267,9 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                     data1 = [i for i in valempirique]
                     for index in range(len(data1)):
                         print("Taux d'erreur sur une modulation avec M = {} et un Eb/N0 = {} : {} %".format(
-                            M[i], index, round(data1[index]*100, 10)))
+                            M[i], index, round(data1[index] * 100, 10)))
                         print("Taux d'erreur après décodage cyclique : {} %".format(
-                            round(valempirique2[index]*100, 10)))
+                            round(valempirique2[index] * 100, 10)))
                     plt.plot(EbSurN0, data1,
                              colors[i], label="{}-QAM".format(M[i]))
                     mylabel = "avec"
@@ -283,12 +278,14 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                 plt.figure(2)
                 data2 = [i for i in valempirique2]
                 plt.plot(EbSurN0, data2, colors[(
-                    j+1)*4+i], label="{}-QAM {} cycccode".format(M[i], mylabel))
+                    j + 1) * 4 + i],
+                    label="{}-QAM {} cycccode".format(M[i], mylabel))
 
         # car il faut convertir en linéaire
         valtheorique = []
         for value in EbSurN0:
-            valtheorique.append(1/2 * special.erfc(math.sqrt(10**(value/10))))
+            valtheorique.append(
+                1 / 2 * special.erfc(math.sqrt(10 ** (value / 10))))
         print("4-QAM théorique : ", valtheorique)
         plt.figure(1)
         plt.plot(EbSurN0, valtheorique, 'g^-', label="4-QAM théorique")
@@ -299,16 +296,16 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
         plt.yscale('log')
         plt.show()
 
-   # Cas général choisit pour la chaine M[1] = 16 points et EbSurN0[9] = 8 dB
+    # Cas général choisit pour la chaine M[1] = 16 points et EbSurN0[9] = 8 dB
     modem = mod.QAMModem(M[1])
     val = [-3, -1, 1, 3]
     points = np.array([complex(x, y)
-                      for x in val for y in val])
+                       for x in val for y in val])
     print("Debut modulation")
     modulated = modem.modulate(codewords)
     print("Fin modulation")
     if addError == True:
-        snr = EbSurN0[9] + 10*math.log10(math.log2(M[1]))
+        snr = EbSurN0[9] + 10 * math.log10(math.log2(M[1]))
         bruited = digcom.cpx_awgn(modulated, snr, 1)
         xpoint = points.real
         ypoint = points.imag
@@ -335,7 +332,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
     return demodulated
 
 
-#----------------------- TP1 -----------------------#
+# ----------------------- TP1 ----------------------- #
 # Q2 et 3
 f = open("The_Adventures_of_Sherlock_Holmes_A_Scandal_In_Bohemia.txt", "r")
 txt = f.read()
@@ -357,18 +354,18 @@ with this eBook or online at www.gutenberg.net
 """
 
 returned_txt = source_encode_decode(
-    txt, valempirique, valempirique2, True,  True)
+    txt, valempirique, valempirique2, True, True)
 
 myinput = str(input("Souhaitez vous afficher le texte reçu ? (Y/n) > "))
 accept = ["Y", "y", "yes", "YES", "Yes"]
 if myinput in accept:
     print(returned_txt)
 
-#h_enc_data = huffman_codec_data.encode(phrase)
-#h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
+# h_enc_data = huffman_codec_data.encode(phrase)
+# h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
 
 # Q6
-#h_dec_data = huffman_codec_data.decode(h_enc_data)
+# h_dec_data = huffman_codec_data.decode(h_enc_data)
 
 # Q7
 # https://stackoverflow.com/questions/39718576/convert-a-byte-array-to-single-bits-in-a-array-python-3-5
@@ -389,10 +386,10 @@ phrasehuff_str = phrasehuff_str + '0'*Njam
 phrasehuff_bit = bitstring_to_bytes_p3(phrasehuff_str)
 """
 
-#----------------------- TP2 -----------------------#
+# ----------------------- TP2 ----------------------- #
 # https://scikit-dsp-comm.readthedocs.io/en/latest/nb_examples/Block_Codes.html
 # cf fonction channel_encode_decode
 
 
-#----------------------- TP3 -----------------------#
+# ----------------------- TP3 ----------------------- #
 # cf fonction modulation_demodulation
