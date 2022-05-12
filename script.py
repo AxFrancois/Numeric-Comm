@@ -14,7 +14,6 @@ github : https://github.com/AxFrancois/Numeric-Comm
 import math
 import sys
 import os
-import time
 import multiprocessing as mp
 import random
 
@@ -30,7 +29,7 @@ from scipy import special
 
 from header_tp_eti import bitstring_to_bytes_p3
 
-mysem = mp.Semaphore(1)
+mysem = mp.Semaphore(0)
 valempirique = mp.Array('f', range(13))  # []
 valempirique2 = mp.Array('f', range(13))  # []
 
@@ -228,6 +227,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
             for i in range(len(M)):
                 modem = mod.QAMModem(M[i])
                 modulated = modem.modulate(code_test[j])
+                print("Calculs pour M = {}...".format(M[i]))
                 for isnr in EbSurN0:
                     pid = os.fork()
                     if pid == 0:  # Processus Fils
@@ -264,10 +264,6 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                             proba2 = result2[1]/len(demodulated) + 1e-8
                             # valempirique2.append(proba2)
                             valempirique2[isnr] = proba2
-                            print("Taux d'erreur sur une modulation avec M = {} et un Eb/N0 = {} : {} %".format(
-                                M[i], isnr, round(proba*100, 10)))
-                            print("Taux d'erreur après décodage cyclique : {} %".format(
-                                round(proba2*100, 10)))
                         else:
                             # valempirique2.append(proba)
                             valempirique2[isnr] = proba
@@ -277,15 +273,18 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                     mysem.acquire()
                 if j == 0:
                     plt.figure(1)
-
                     data1 = [i for i in valempirique]
+                    for index in range(len(data1)):
+                        print("Taux d'erreur sur une modulation avec M = {} et un Eb/N0 = {} : {} %".format(
+                            M[i], index, round(data1[index]*100, 10)))
+                        print("Taux d'erreur après décodage cyclique : {} %".format(
+                            round(valempirique2[index]*100, 10)))
                     plt.plot(EbSurN0, data1,
                              colors[i], label="{}-QAM".format(M[i]))
                     mylabel = "avec"
                 else:
                     mylabel = "sans"
                 plt.figure(2)
-
                 data2 = [i for i in valempirique2]
                 plt.plot(EbSurN0, data2, colors[(
                     j+1)*4+i], label="{}-QAM {} cycccode".format(M[i], mylabel))
@@ -294,7 +293,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
         valtheorique = []
         for value in EbSurN0:
             valtheorique.append(1/2 * special.erfc(math.sqrt(10**(value/10))))
-        print(valtheorique)
+        print("4-QAM théorique : ", valtheorique)
         plt.figure(1)
         plt.plot(EbSurN0, valtheorique, 'g^-', label="4-QAM théorique")
         plt.legend(loc="lower left")
@@ -361,13 +360,19 @@ re-use it under the terms of the Project Gutenberg License included
 with this eBook or online at www.gutenberg.net
 """
 
-source_encode_decode(txt, valempirique, valempirique2, True,  True)
+returned_txt = source_encode_decode(
+    txt, valempirique, valempirique2, True,  True)
 
-h_enc_data = huffman_codec_data.encode(phrase)
-h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
+myinput = str(input("Souhaitez vous afficher le texte reçu ? (Y/n) > "))
+accept = ["Y", "y", "yes", "YES", "Yes"]
+if myinput in accept:
+    print(returned_txt)
+
+#h_enc_data = huffman_codec_data.encode(phrase)
+#h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
 
 # Q6
-h_dec_data = huffman_codec_data.decode(h_enc_data)
+#h_dec_data = huffman_codec_data.decode(h_enc_data)
 
 # Q7
 # https://stackoverflow.com/questions/39718576/convert-a-byte-array-to-single-bits-in-a-array-python-3-5
@@ -377,6 +382,7 @@ x = np.fromstring(mem, dtype=np.uint8)
 np.unpackbits(x).reshape(3, 8)
 
 # Q8
+"""
 phrasehuff_str = ""
 for letter in phrase:
     phrasehuff_str = phrasehuff_str + \
@@ -385,7 +391,7 @@ k = 4
 Njam = k - len(phrasehuff_str) % k
 phrasehuff_str = phrasehuff_str + '0'*Njam
 phrasehuff_bit = bitstring_to_bytes_p3(phrasehuff_str)
-
+"""
 
 #----------------------- TP2 -----------------------#
 # https://scikit-dsp-comm.readthedocs.io/en/latest/nb_examples/Block_Codes.html
