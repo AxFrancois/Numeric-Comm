@@ -62,6 +62,7 @@ def homemade_huffman_encoder(pTuple):
 
 def huffman_decoder_table(huff_code_table):
     dic = {}
+    # Boucle permettant de remplacer chaque caractère par sa valeur binaire
     for item in huff_code_table.items():
         intInBin = bin(item[1][1]).replace("0b", "")
         valbin = "0" * (item[1][0] - len(intInBin)) + intInBin
@@ -73,6 +74,7 @@ def graphLettres(txt):
     # TP1 Q2
     char = []
     count = []
+    # Boucle permettant de compter le nombre de répétition d'un caractère dans le texte
     for letter in txt:
         if letter in char:
             count[char.index(letter)] += 1
@@ -82,6 +84,7 @@ def graphLettres(txt):
     charArray = np.array(char)
     countArray = np.array(count)
     probaArray = countArray / len(txt)
+    # Affichage des probabilités d'apparition des caractères dans le texte
     fig = plt.figure(0)
     ax = fig.add_axes([0.1, 0.1, 0.85, 0.85])
     ax.bar(charArray, probaArray)
@@ -89,12 +92,14 @@ def graphLettres(txt):
     legend = fig.legend(handles, labels, loc='lower left', ncol=2,
                         frameon=False, bbox_to_anchor=(0.12, 0.88))
     # Q3
+    # Calcul de l'entropie de l'alphabet
     entropy = -np.sum(np.dot(probaArray, np.log2(probaArray)))
-    print("Entropie calculé : ", entropy)
+    print("Entropie calculée : ", entropy)
 
 
 def source_encode_decode(txt, valempirique, valempirique2, drawgraph=False, addError=False):
     # TP1 Q4
+    # Création et affichage de la table du codec Huffman de notre texte
     huffman_codec_data = HuffmanCodec.from_data(txt)
     print("Code table du codec Huffman : ")
     huffman_codec_data.print_code_table()
@@ -102,19 +107,22 @@ def source_encode_decode(txt, valempirique, valempirique2, drawgraph=False, addE
     huff_code_table = huffman_codec_data.get_code_table()
 
     # TP1 Q5
+    # Encodage Huffman du texte
     print("Debut encodage Huffman")
     h_enc_data = huffman_codec_data.encode(txt)
     h_enc_data_str = ''.join(format(byte, '08b') for byte in h_enc_data)
     print("Fin encodage Huffman")
 
-    # Calcul du taux d'erreur sur un code huffman bruité avec 1 erreur par bloc de 4 bits
+    # Calcul du taux d'erreur sur un code Huffman bruité avec 1 erreur par bloc de 4 bits
     print("Calculs de probabilités : ", addError)
+    # Condition permettant d'ajouter des erreurs dans le texte encodé 
     if addError == True:
         h_enc_data_str_err = add_error(h_enc_data_str, 4)
         h_enc_data_err = bitstring_to_bytes_p3(
             h_enc_data_str_err)
         h_dec_err = huffman_codec_data.decode(h_enc_data_err)
         nbError = 0
+        # Boucle permettant de calculer le pourcentage d'erreur ajouté dans le texte
         for i in range(min(len(h_dec_err), len(txt))):
             if h_dec_err[i] != txt[i]:
                 nbError += 1
@@ -127,6 +135,7 @@ def source_encode_decode(txt, valempirique, valempirique2, drawgraph=False, addE
         h_enc_data_str, valempirique, valempirique2, drawgraph, addError)
 
     # TP1 Q6
+    # Décodage Huffman de notre texte encodé
     print("Debut décodage Huffman")
     h_dec_data = huffman_codec_data.decode(returned_h_enc_data)
     print("Fin décodage Huffman")
@@ -138,6 +147,7 @@ def add_error(txt, k):
     # TP1 Q9
     error_txt = txt
     i = 0
+    # Boucle ajoutant des erreurs dans le texte jusqu'à ce que les erreurs dépassent la taille du texte
     while i < len(error_txt):
         randnum = random.randint(0, k - 1)
         if error_txt[i + randnum] == '0':
@@ -212,6 +222,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
               'ys--', 'ms--', 'rD-.', 'bD-.', 'yD-.', 'mD-.']
     EbSurN0 = range(13)  # en dB
 
+    # Condition et boucle permettant d'afficher les différentes figures demandées
     if drawgraph == True:
         code_test = [codewords, h_enc_array]
         for j in range(len(code_test)):
@@ -281,7 +292,7 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
                     j + 1) * 4 + i],
                     label="{}-QAM {} cycccode".format(M[i], mylabel))
 
-        # car il faut convertir en linéaire
+        # Conversion en linéaire
         valtheorique = []
         for value in EbSurN0:
             valtheorique.append(
@@ -301,9 +312,11 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
     val = [-3, -1, 1, 3]
     points = np.array([complex(x, y)
                        for x in val for y in val])
+    # Modulation des différents mots-codes
     print("Debut modulation")
     modulated = modem.modulate(codewords)
     print("Fin modulation")
+    # Calcul du SNR et affichage de la constellation de la modulation en fonction des erreurs ajoutées
     if addError == True:
         snr = EbSurN0[9] + 10 * math.log10(math.log2(M[1]))
         bruited = digcom.cpx_awgn(modulated, snr, 1)
@@ -317,10 +330,12 @@ def modulation_demodulation(codewords, h_enc_array, cyccode, valempirique, valem
         plt.ylabel('Imaginary')
         plt.xlabel('Real')
         plt.show()
+        # Démodulation pour un signal modulé avec des erreurs
         print("Debut démodulation")
         demodulated = modem.demodulate(bruited, 'hard')
         print("Fin démodulation")
     else:
+        # Démodulation pour un signal modulé sans erreurs
         print("Debut démodulation")
         demodulated = modem.demodulate(modulated, 'hard')
         print("Fin démodulation")
@@ -345,6 +360,7 @@ huffman_codec_data = HuffmanCodec.from_data(txt)
 huff_code_table = huffman_codec_data.get_code_table()
 
 # Q5
+# Bout de texte pris permettant de tester notre programme afin de ne pas tester nos fonctions sur tout le texte faisant perdre du temps
 phrase = """Project Gutenberg's The Adventures of Sherlock Holmes, by Arthur Conan Doyle
 
 This eBook is for the use of anyone anywhere at no cost and with
@@ -358,6 +374,7 @@ returned_txt = source_encode_decode(
 
 myinput = str(input("Souhaitez vous afficher le texte reçu ? (Y/n) > "))
 accept = ["Y", "y", "yes", "YES", "Yes"]
+# Affichage du texte reçu demandé par l'utilisateur 
 if myinput in accept:
     print(returned_txt)
 
